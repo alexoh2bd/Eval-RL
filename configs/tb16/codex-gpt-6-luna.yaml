@@ -1,0 +1,62 @@
+# Terminal-Bench 2.0, 16-task stratified subset — agent: codex / openai/gpt-6-luna
+# Reproduce: harbor run -c configs/tb16/codex-gpt-6-luna.yaml --env-file .env
+#
+# Task selection (seed 20261104): pool = 87 local tasks requesting <=2 CPU / <=4 GiB
+# (excludes mcmc-sampling-stan, rstan-to-pystan @ 8 GiB). 16 slots allocated across
+# categories proportionally (largest remainder), then sampled within category.
+# Swap: mteb-retrieve (8.8 GB compressed image, cannot fit the disk cap) replaced by a
+# seeded re-draw from data-science tasks with <=2 GiB memory and <2 GB image -> query-optimize.
+# Difficulty mix: 9 medium / 6 hard / 1 easy (pool: 54 / 29 / 4).
+#
+# Daytona quota: 10 vCPU / 10 GiB RAM / 30 GiB disk. Target 4 concurrent sandboxes.
+#   Disk is the binding limit: 4 x 7 GiB = 28 GiB (default 10 GiB x 4 = 40 would not fit).
+#   Largest remaining image is qemu-startup at 1.3 GB compressed.
+#   Memory is left at each task's own request (13 tasks @ 2 GiB, 3 @ 4 GiB:
+#   torch-pipeline-parallelism, qemu-startup, merge-diff-arc-agi-task). If 3+ of the 4 GiB
+#   tasks overlap with others, total exceeds 10 GiB and a sandbox waits for quota;
+#   Harbor retries that, and EnvironmentStartTimeoutError is retried below.
+#   Daytona sizes are whole GiB (Harbor floors storage_mb // 1024), so use multiples of 1024.
+#
+# Cost control: the codex agent has no max_turns option (Harbor rejects it), so spend
+# per trial is bounded only by each task's agent timeout. Check cost after the first run.
+
+jobs_dir: jobs/tb16
+n_attempts: 1
+n_concurrent_trials: 4
+
+retry:
+  max_retries: 2
+  include_exceptions:         # only retry failures before the agent spends tokens
+    - EnvironmentStartTimeoutError
+
+environment:
+  type: daytona
+  delete: true
+  override_storage_mb: 7168   # 7 GiB per sandbox
+
+agents:
+  - name: codex
+    model_name: openai/gpt-6-luna
+
+datasets:
+  - path: datasets/terminal-bench
+    task_names:
+      # software-engineering (5)
+      - polyglot-rust-c
+      - prove-plus-comm
+      - pypi-server
+      - regex-chess
+      - torch-pipeline-parallelism
+      # system-administration (2)
+      - configure-git-webserver
+      - qemu-startup
+      # one each
+      - log-summary-date-ranges          # data-processing
+      - query-optimize                   # data-science
+      - merge-diff-arc-agi-task          # debugging
+      - gcode-to-text                    # file-operations
+      - llm-inference-batching-scheduler # machine-learning
+      - feal-differential-cryptanalysis  # mathematics
+      - pytorch-model-cli                # model-training
+      - raman-fitting                    # scientific-computing
+      - break-filter-js-from-html        # security

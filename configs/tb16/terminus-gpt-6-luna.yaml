@@ -1,0 +1,55 @@
+# Terminal-Bench 2.0, 16-task stratified subset — agent: terminus-2 / openai/gpt-6-luna
+# Reproduce: harbor run -c configs/tb16/gpt-6-luna.yaml --env-file .env
+#
+# Task selection (seed 20261104): pool = 87 local tasks requesting <=2 CPU / <=4 GiB
+# (excludes mcmc-sampling-stan, rstan-to-pystan @ 8 GiB). 16 slots allocated across
+# categories proportionally (largest remainder), then sampled within category.
+# Difficulty mix: 9 medium / 6 hard / 1 easy (pool: 54 / 29 / 4).
+#
+# Cost control: Harbor has no native $ cap; max_turns is the proxy, scaled per model
+# to a ~$0.50/trial budget. Repricing the 2026-11-04__10-06-26 Sonnet trajectories at
+# luna rates (in 1e-7, out 5e-7, cached 1e-8 $/tok), the 655-turn run crosses $0.50
+# at turn 326 (Sonnet: turn 64). Set to 150 for margin, since luna's reasoning tokens
+# bill as output. Estimate only — check real luna cost/turn after the first run.
+
+jobs_dir: jobs/tb16
+n_attempts: 3                 # pass@k + per-task variance; 16 x 3 = 48 trials
+n_concurrent_trials: 2        # Daytona quota fit 2 sandboxes at 2cpu/4GiB/10GiB; these are smaller
+
+retry:
+  max_retries: 2
+  include_exceptions:         # only retry failures before the agent spends tokens
+    - EnvironmentStartTimeoutError
+
+environment:
+  type: daytona
+  delete: true
+
+agents:
+  - name: terminus-2
+    model_name: openai/gpt-6-luna
+    kwargs:
+      max_turns: 150
+
+datasets:
+  - path: datasets/terminal-bench
+    task_names:
+      # software-engineering (5)
+      - polyglot-rust-c
+      - prove-plus-comm
+      - pypi-server
+      - regex-chess
+      - torch-pipeline-parallelism
+      # system-administration (2)
+      - configure-git-webserver
+      - qemu-startup
+      # one each
+      - log-summary-date-ranges          # data-processing
+      - mteb-retrieve                    # data-science
+      - merge-diff-arc-agi-task          # debugging
+      - gcode-to-text                    # file-operations
+      - llm-inference-batching-scheduler # machine-learning
+      - feal-differential-cryptanalysis  # mathematics
+      - pytorch-model-cli                # model-training
+      - raman-fitting                    # scientific-computing
+      - break-filter-js-from-html        # security

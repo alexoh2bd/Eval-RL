@@ -1,0 +1,53 @@
+# Terminal-Bench 2.0, 16-task stratified subset — agent: terminus-2 / anthropic/claude-sonnet-5-5
+# Reproduce: harbor run -c configs/tb16/sonnet-5-5.yaml --env-file .env
+#
+# Task selection (seed 20261104): pool = 87 local tasks requesting <=2 CPU / <=4 GiB
+# (excludes mcmc-sampling-stan, rstan-to-pystan @ 8 GiB). 16 slots allocated across
+# categories proportionally (largest remainder), then sampled within category.
+# Difficulty mix: 9 medium / 6 hard / 1 easy (pool: 54 / 29 / 4).
+#
+# Cost control: Harbor has no native $ cap. max_turns=30 is the proxy — in the
+# 2026-11-04__10-06-26 Sonnet 5.5 run, $0.50 was first crossed at turn 35 and 55;
+# all other trials finished under $0.50. Not a hard guarantee.
+
+jobs_dir: jobs/tb16
+n_attempts: 3                 # pass@k + per-task variance; 16 x 3 = 48 trials
+n_concurrent_trials: 2        # Daytona quota fit 2 sandboxes at 2cpu/4GiB/10GiB; these are smaller
+
+retry:
+  max_retries: 2
+  include_exceptions:         # only retry failures before the agent spends tokens
+    - EnvironmentStartTimeoutError
+
+environment:
+  type: daytona
+  delete: true
+
+agents:
+  - name: terminus-2
+    model_name: anthropic/claude-sonnet-5-5
+    kwargs:
+      max_turns: 30
+
+datasets:
+  - path: datasets/terminal-bench
+    task_names:
+      # software-engineering (5)
+      - polyglot-rust-c
+      - prove-plus-comm
+      - pypi-server
+      - regex-chess
+      - torch-pipeline-parallelism
+      # system-administration (2)
+      - configure-git-webserver
+      - qemu-startup
+      # one each
+      - log-summary-date-ranges          # data-processing
+      - mteb-retrieve                    # data-science
+      - merge-diff-arc-agi-task          # debugging
+      - gcode-to-text                    # file-operations
+      - llm-inference-batching-scheduler # machine-learning
+      - feal-differential-cryptanalysis  # mathematics
+      - pytorch-model-cli                # model-training
+      - raman-fitting                    # scientific-computing
+      - break-filter-js-from-html        # security
